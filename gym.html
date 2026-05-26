@@ -2992,11 +2992,20 @@ img, video, canvas, svg { max-width: 100%; }
   async function uploadPhotoToStorage(dataUrl) {
     if (!pcSupa) return null;
     try {
-      const b64 = dataUrl.split(',')[1];
-      const bytes = atob(b64);
-      const arr = new Uint8Array(bytes.length);
-      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-      const blob = new Blob([arr], { type: 'image/jpeg' });
+      let blob;
+      try {
+        // Preferred path: native fetch handles any data URL format cleanly.
+        const res = await fetch(dataUrl);
+        blob = await res.blob();
+      } catch {
+        // Fallback: manual base64 decode — needed on iOS when fetch rejects
+        // data URLs that originated from a file-picker (HEIC / large files).
+        const b64 = dataUrl.split(',')[1];
+        const bytes = atob(b64);
+        const arr = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        blob = new Blob([arr], { type: 'image/jpeg' });
+      }
       const filename = 'photo_' + Date.now() + '_' +
         Math.random().toString(36).slice(2, 10) + '.jpg';
       const { error } = await pcSupa.storage
@@ -3344,6 +3353,10 @@ img, video, canvas, svg { max-width: 100%; }
       let val;
       try { val = JSON.parse(v); } catch { continue; }
       if (k === 'po_coach_photos' && Array.isArray(val)) {
+        // If any photo is still pending upload (dataUrl only, no url), skip
+        // pushing photos entirely this cycle — the upload callback will trigger
+        // another push once it has a real Storage URL.
+        if (val.some((p) => p && p.dataUrl && !p.url)) continue;
         val = val
           .filter((p) => p && p.url)
           .map((p) => ({ id: p.id, url: p.url, dateKey: p.dateKey, weight: p.weight }));
