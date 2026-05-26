@@ -2992,8 +2992,11 @@ img, video, canvas, svg { max-width: 100%; }
   async function uploadPhotoToStorage(dataUrl) {
     if (!pcSupa) return null;
     try {
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
+      const b64 = dataUrl.split(',')[1];
+      const bytes = atob(b64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      const blob = new Blob([arr], { type: 'image/jpeg' });
       const filename = 'photo_' + Date.now() + '_' +
         Math.random().toString(36).slice(2, 10) + '.jpg';
       const { error } = await pcSupa.storage
